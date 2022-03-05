@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/stylesheets/style.css" />
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"crossorigin="anonymous">
+  <script src="http://code.jquery.com/jquery-3.2.1.min.js"></script>
+  <!-- React関係のライブラリの読み込み -->
+  <!-- <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script> -->
+
+  <!-- 自分で書くスクリプト -->
+  <!-- <script type="text/babel" src="Tweet.jsx" defer></script>
+  <script type="text/babel" src="Timeline.jsx" defer></script>
+  <script type="text/babel" src="TweetInput.jsx" defer></script>
+  <script type="text/babel" src="main.jsx" defer></script> -->
+  <script>
+    $(function () {
+
+      var org_ocrResult = "";
+      $('#btn_runOcr').click(function(){
+        run_ocr();
+      })
+      function run_ocr() {
+        var img_url = $('#img_url').val();
+        var img_base64 = "";
+        if ($('#img1').attr('src').length > 0) {
+          img_base64 = $('#img1').attr('src');
+        }
+        var is_del_line = 0;
+        var is_sharpen_img = 0;
+        var is_tate = 0;
+        if (img_url != "" && img_base64 == "") {
+          $('#temp_img').attr('src', img_url).show();
+        } else {
+          $('#temp_img').hide();
+        }
+        $('#ocrResult').val('識別中...');
+        $('#err_ocrResult').val('');
+        $(':checkbox[name="ocr_option"]:checked').each(function () {
+          if ($(this).attr('id') == 'is_del_line') {
+            is_del_line = 1;
+          }
+          if ($(this).attr('id') == 'is_sharpen_img') {
+            is_sharpen_img = 1;
+          }
+          if ($(this).attr('id') == 'is_tate') {
+            is_tate = 1;
+          }
+        })
+        $.ajax({
+          type: 'post',
+          url: '/runOcr',
+          data: {
+            img_url: img_url,
+            img_base64: img_base64,
+            is_del_line: is_del_line,
+            is_sharpen_img: is_sharpen_img,
+            is_tate: is_tate
+          },
+          dataType: 'json'
+        }).done(function (json, textStatus, jqXHR) {
+          console.log(json);
+          if (json.err_msg.length > 0) {
+            $('#ocrResult').hide();
+          } else {
+            $('#ocrResult').show();
+          }
+          $('#ocrResult').val(json.txt_pyocr.replace(/<br>/g, '\n'));
+          org_ocrResult = json.txt_pyocr.replace(/<br>/g, '\n');
+          $('#err_ocrResult').val(json.err_msg);
+          // 通信に失敗した時に実行される
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+          console.log("jqXHR.status: " + jqXHR.status); //例：404
+          console.log("textStatus: " + textStatus); //例：error
+          console.log("errorThrown: " + errorThrown); //例：NOT FOUND
+          // 成功/失敗に関わらず実行される
+        }).always(function () {
+          console.log("Ajax通信完了。");
+        })
+      }
+
+      $('#myfile').change(function (e) {
+        //ファイルオブジェクトを取得する
+        var file = e.target.files[0];
+        var reader = new FileReader();
+
+        //画像でない場合は処理終了
+        if (file.type.indexOf("image") < 0) {
+          alert("画像ファイルを指定してください。");
+          return false;
+        }
+
+        //アップロードした画像を設定する
+        reader.onload = (function (file) {
+          return function (e) {
+            $("#img1").attr("src", e.target.result).show();
+            $('#img_url').val('');
+            $('#temp_img').hide();
+            $("#img1").attr("title", file.name);
+          };
+        })(file);
+        reader.readAsDataURL(file);
+      });
+
+      $('#delfile').click(function () {
+        $("#img1").attr("src", "").hide();
+      })
+
+      $('#btn_delSpace').click(function (){
+        if (!$(this).hasClass('space_deleted')){
+          $('#ocrResult').val(org_ocrResult.replace(/ /g, ''));
+          $(this).addClass('space_deleted').text('撤回');
+        } else {
+          $('#ocrResult').val(org_ocrResult);
+          $(this).removeClass('space_deleted').text('空白を削除');
+        }
+      })
+    })
+  </script>
+</head>
+
+<body>
+  <h1> OCR テスト</h1>
+  <h3> Tesseract-OCR test</h3>
+  <!-- <div id="app"></div> -->
+  <div style="border: 10px;">
+    <input id="img_url" type="text" style="width: 500px; height: 30px; font-size: 16px;" placeholder="画像のURLを貼り付けてください。">
+    <div>
+      <img id="temp_img" src="" style="display: none;" width="500" height="500" />
+    </div>
+    <p style="margin: 8px 0;">または、</p>
+    <input type="file" id="myfile" ><span id="delfile" style="cursor: pointer;">X</span><br>
+    <img id="img1" src="" style="max-width:500px; max-height:1000px; display: none;" />
+    <div style="border:1px solid #000; width: 500px; margin: 6px 0; padding: 5px;">
+      <p style="margin: 8px 0;">options: </p>
+      <input type="checkbox" id="is_sharpen_img" name="ocr_option" checked>
+      <label for="is_sharpen_img">文字と白地を分離</label>
+      <br>
+      <input type="checkbox" id="is_del_line" name="ocr_option">
+      <label for="is_del_line">線を消す(より時間掛かります)</label>
+      <br>
+      <input type="checkbox" id="is_tate" name="ocr_option">
+      <label for="is_tate">日本語縦書きの場合</label>
+    </div>
+    <button type="button" class="btn btn-primary" id="btn_runOcr" style="display: block; width: 100px;">実行</button>
+  </div>
+  <div>
+    <textarea id="ocrResult" placeholder="結果がこちらに表示されます。"
+      style="width: 500px; height: 300px; font-size: 18px; font-family: 'TsukuBRdGothic-Regular', 'UD Digi Kyokasho N-R'; padding: 5px; margin-top: 10px;"></textarea>
+    <br>
+    <button class="btn btn-primary" type="button" id="btn_delSpace"">空白を削除</button>
+    <br>
+    <br>
+    <textarea id="err_ocrResult" placeholder="エラーメッセージがこちらに表示されます。"
+      style="width: 500px; height: 100px; color: crimson;  font-size: 17px; font-family: 'TsukuBRdGothic-Regular', 'UD Digi Kyokasho N-R'; padding: 5px;"></textarea>
+  </div>
+</body>
+
+</html>
